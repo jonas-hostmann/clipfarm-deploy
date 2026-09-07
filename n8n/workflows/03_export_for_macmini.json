@@ -1,0 +1,115 @@
+{
+  "name": "03_Export_For_MacMini",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule-export",
+      "name": "Schedule Export",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM clips WHERE status = 'ready' AND exported = false ORDER BY virality_score DESC LIMIT 20",
+        "options": {}
+      },
+      "id": "get-ready-clips",
+      "name": "Get Ready Clips",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-clipfarm",
+          "name": "ClipFarm Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bereite Export-Paket für Mac Mini vor\nconst clips = $input.all();\nconst exportPackage = {\n  exported_at: new Date().toISOString(),\n  clips: []\n};\n\nfor (const clip of clips) {\n  exportPackage.clips.push({\n    id: clip.json.id,\n    title: clip.json.title,\n    hook: clip.json.hook,\n    virality_score: clip.json.virality_score,\n    duration: clip.json.duration,\n    file_path: clip.json.file_path,\n    thumbnail_path: clip.json.thumbnail_path,\n    source_video_id: clip.json.source_video_id\n  });\n}\n\n// Speichere Export-Paket in MinIO oder als JSON-Datei\nreturn [{\n  json: exportPackage\n}];"
+      },
+      "id": "build-export",
+      "name": "Build Export Package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://minio:9000/clipfarm-exports/export_{{ Date.now() }}.json",
+        "method": "PUT",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "upload-export",
+      "name": "Upload Export to MinIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE clips SET exported = true, exported_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": {
+            "mode": "multiple"
+          }
+        }
+      },
+      "id": "mark-exported",
+      "name": "Mark as Exported",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1050, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-clipfarm",
+          "name": "ClipFarm Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Export": {
+      "main": [[{"node": "Get Ready Clips", "type": "main", "index": 0}]]
+    },
+    "Get Ready Clips": {
+      "main": [[{"node": "Build Export Package", "type": "main", "index": 0}]]
+    },
+    "Build Export Package": {
+      "main": [[{"node": "Upload Export to MinIO", "type": "main", "index": 0}]]
+    },
+    "Upload Export to MinIO": {
+      "main": [[{"node": "Mark as Exported", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

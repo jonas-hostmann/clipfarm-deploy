@@ -1,0 +1,108 @@
+{
+  "name": "03_Upload_Queue",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule-upload",
+      "name": "Schedule Upload",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM clips WHERE status = 'ready' AND uploaded = false ORDER BY virality_score DESC LIMIT 10",
+        "options": {}
+      },
+      "id": "get-pending",
+      "name": "Get Pending Clips",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bereite Upload-Plan vor\nconst clips = $input.all();\nconst platforms = ['tiktok', 'instagram', 'youtube'];\nconst schedule = [];\n\nlet hour = 8; // Start um 8 Uhr\n\nfor (const clip of clips) {\n  for (const platform of platforms) {\n    schedule.push({\n      json: {\n        clip_id: clip.json.id,\n        platform: platform,\n        scheduled_time: `${hour}:00`,\n        title: clip.json.title,\n        file_path: clip.json.file_path\n      }\n    });\n    hour += 2; // 2h Abstand\n  }\n}\n\nreturn schedule;"
+      },
+      "id": "build-schedule",
+      "name": "Build Schedule",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "upload_queue",
+        "columns": {
+          "mapping": [
+            {
+              "column": "clip_id",
+              "value": "={{ $json.clip_id }}"
+            },
+            {
+              "column": "platform",
+              "value": "={{ $json.platform }}"
+            },
+            {
+              "column": "scheduled_at",
+              "value": "={{ $json.scheduled_time }}"
+            },
+            {
+              "column": "status",
+              "value": "pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "queue-uploads",
+      "name": "Queue Uploads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE clips SET status = 'queued' WHERE id = $1",
+        "options": {}
+      },
+      "id": "mark-queued",
+      "name": "Mark Queued",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Upload": {
+      "main": [[{"node": "Get Pending Clips", "type": "main", "index": 0}]]
+    },
+    "Get Pending Clips": {
+      "main": [[{"node": "Build Schedule", "type": "main", "index": 0}]]
+    },
+    "Build Schedule": {
+      "main": [[{"node": "Queue Uploads", "type": "main", "index": 0}]]
+    },
+    "Queue Uploads": {
+      "main": [[{"node": "Mark Queued", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}
