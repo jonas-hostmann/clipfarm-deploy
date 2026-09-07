@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipFarm – Einstellungen</title>
+    <style>
+        :root {
+            --bg: #0f0f23;
+            --card: #1a1a2e;
+            --card-hover: #16213e;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --accent: #00d4aa;
+            --accent-dim: #00d4aa33;
+            --danger: #ff4757;
+            --warning: #ffa502;
+            --success: #2ed573;
+            --border: #2a2a4a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header h1::before {
+            content: "⚙️";
+        }
+
+        .nav {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover {
+            color: var(--text);
+            background: var(--card-hover);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .section {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-body {
+            padding: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="password"],
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.9375rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-group .hint {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .alert-success {
+            background: var(--success);
+            color: #000;
+        }
+
+        .alert-error {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-connected {
+            background: var(--success);
+            color: #000;
+        }
+
+        .status-disconnected {
+            background: var(--warning);
+            color: #000;
+        }
+
+        .key-status {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .key-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .dot-active { background: var(--success); }
+        .dot-inactive { background: var(--danger); }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ClipFarm Einstellungen</h1>
+        <nav class="nav">
+            <a href="/">← Dashboard</a>
+        </nav>
+    </div>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+
+        <!-- OpenRouter Status -->
+        <div class="section">
+            <div class="section-header">
+                <h2>🔑 OpenRouter Status</h2>
+            </div>
+            <div class="section-body">
+                <div class="key-status">
+                    <span class="dot {% if settings.openrouter_api_key %}dot-active{% else %}dot-inactive{% endif %}"></span>
+                    <span>API Key: {% if settings.openrouter_api_key %}<strong>Gesetzt</strong> ({{ key_display }}){% else %}<strong>Nicht gesetzt</strong>{% endif %}</span>
+                </div>
+                <div class="key-status">
+                    <span class="dot {% if coolify_connected %}dot-active{% else %}dot-inactive{% endif %}"></span>
+                    <span>Coolify: {% if coolify_connected %}<strong>Verbunden</strong> (Auto-Restart aktiv){% else %}<strong>Nicht verbunden</strong> (nur lokal gespeichert){% endif %}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- OpenRouter Konfiguration -->
+        <div class="section">
+            <div class="section-header">
+                <h2>🤖 KI-Modell Konfiguration</h2>
+            </div>
+            <div class="section-body">
+                <form id="settingsForm" action="/settings/save" method="post">
+                    <div class="form-group">
+                        <label for="openrouter_api_key">OpenRouter API Key</label>
+                        <input type="password" id="openrouter_api_key" name="openrouter_api_key" 
+                               value="{{ settings.openrouter_api_key }}" 
+                               placeholder="sk-or-v1-...">
+                        <p class="hint">Erstelle einen Key unter <a href="https://openrouter.ai/keys" target="_blank" style="color: var(--accent)">openrouter.ai/keys</a></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="openrouter_model">LLM-Modell</label>
+                        <select id="openrouter_model" name="openrouter_model">
+                            {% for model_id, model_name in models %}
+                            <option value="{{ model_id }}" {% if settings.openrouter_model == model_id %}selected{% endif %}>
+                                {{ model_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <p class="hint">Wähle das Modell für Virality-Scoring & Clip-Analyse</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="llm_provider">Provider</label>
+                        <select id="llm_provider" name="llm_provider">
+                            <option value="openrouter" {% if settings.llm_provider == 'openrouter' %}selected{% endif %}>OpenRouter (empfohlen)</option>
+                            <option value="google" {% if settings.llm_provider == 'google' %}selected{% endif %}>Google AI (direkt)</option>
+                            <option value="openai" {% if settings.llm_provider == 'openai' %}selected{% endif %}>OpenAI (direkt)</option>
+                            <option value="anthropic" {% if settings.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic (direkt)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assembly_ai_key">AssemblyAI Key (optional)</label>
+                        <input type="password" id="assembly_ai_key" name="assembly_ai_key" 
+                               value="{{ settings.assembly_ai_key }}"
+                               placeholder="Für bessere Transkription">
+                        <p class="hint">Ohne Key wird Whisper (lokal) verwendet</p>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        💾 Speichern & Anwenden
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Hinweis -->
+        <div class="section">
+            <div class="section-header">
+                <h2>ℹ️ Wie es funktioniert</h2>
+            </div>
+            <div class="section-body" style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.6;">
+                <p><strong>1.</strong> Trage deinen OpenRouter API Key ein und wähle ein Modell.</p>
+                <p><strong>2.</strong> Beim Speichern wird der Key in der Datenbank gespeichert.</p>
+                <p><strong>3.</strong> Wenn Coolify verbunden ist, werden die Env Vars automatisch aktualisiert und SupoClip restartet.</p>
+                <p><strong>4.</strong> SupoClip nutzt dann OpenRouter für alle KI-Operationen (Virality-Scoring, Hook-Generierung, etc.).</p>
+                <br>
+                <p>Preise bei OpenRouter (ca.):</p>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                    <li>Claude 3.5 Sonnet: ~$3 / 1M Tokens</li>
+                    <li>GPT-4o: ~$5 / 1M Tokens</li>
+                    <li>Gemini 1.5 Flash: ~$0.50 / 1M Tokens</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Form AJAX Submit
+        document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '⏳ Speichern...';
+            btn.disabled = true;
+            
+            try {
+                const formData = new FormData(form);
+                const response = await fetch('/settings/save', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                const result = await response.json();
+                
+                const alert = document.getElementById('alert');
+                alert.className = 'alert alert-success';
+                alert.textContent = result.message;
+                alert.style.display = 'block';
+                
+                if (result.coolify_updated) {
+                    alert.textContent += ' SupoClip wird neu gestartet (ca. 30-60s).';
+                }
+                
+                setTimeout(() => {
+                    alert.style.display = 'none';
+                }, 5000);
+                
+            } catch (err) {
+                const alert = document.getElementById('alert');
+                alert.className = 'alert alert-error';
+                alert.textContent = 'Fehler: ' + err.message;
+                alert.style.display = 'block';
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
