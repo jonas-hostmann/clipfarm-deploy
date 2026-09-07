@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipFarm Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f0f23;
+            --card: #1a1a2e;
+            --card-hover: #16213e;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --accent: #00d4aa;
+            --accent-dim: #00d4aa33;
+            --danger: #ff4757;
+            --warning: #ffa502;
+            --success: #2ed573;
+            --border: #2a2a4a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header h1::before {
+            content: "▶";
+            color: var(--accent);
+        }
+
+        .header .status {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .metric-card:hover {
+            background: var(--card-hover);
+            transform: translateY(-2px);
+        }
+
+        .metric-card .label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .metric-card .subtitle {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .section {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .section-body {
+            padding: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        tr:hover td {
+            background: var(--card-hover);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success { background: var(--success); color: #000; }
+        .badge-warning { background: var(--warning); color: #000; }
+        .badge-danger { background: var(--danger); color: #fff; }
+        .badge-info { background: var(--accent-dim); color: var(--accent); }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .score {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .score-high { color: var(--success); }
+        .score-mid { color: var(--warning); }
+        .score-low { color: var(--danger); }
+
+        .export-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+        .export-pending { background: var(--warning); color: #000; }
+        .export-done { background: var(--success); color: #000; }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .metrics { grid-template-columns: repeat(2, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ClipFarm Dashboard</h1>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="/settings" style="color: var(--accent); text-decoration: none; font-size: 0.875rem;">⚙️ Einstellungen</a>
+            <span class="status">Letzte Aktualisierung: {{ now }}</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Metrics -->
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="label">Downloads Heute</div>
+                <div class="value">{{ metrics.videos_today }}</div>
+                <div class="subtitle">Gesamt: {{ metrics.total_videos }}</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Clips Heute</div>
+                <div class="value">{{ metrics.clips_today }}</div>
+                <div class="subtitle">Gesamt: {{ metrics.total_clips }}</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Bereit für Export</div>
+                <div class="value" style="color: var(--warning)">{{ metrics.pending_export }}</div>
+                <div class="subtitle">Exportiert: {{ metrics.total_exported }}</div>
+            </div>
+            <div class="metric-card">
+                <div class="label">Erfolgsrate</div>
+                <div class="value">
+                    {% if metrics.total_videos > 0 %}
+                        {{ "%.0f"|format((metrics.total_clips / metrics.total_videos) * 100) }}%
+                    {% else %}0%{% endif %}
+                </div>
+                <div class="subtitle">Clips / Videos</div>
+            </div>
+        </div>
+
+        <!-- Chart + Active Jobs -->
+        <div class="grid-2">
+            <div class="section">
+                <div class="section-header">
+                    <h2>📊 Letzte 7 Tage</h2>
+                </div>
+                <div class="section-body">
+                    <div class="chart-container">
+                        <canvas id="weeklyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>⚡ Aktive Jobs</h2>
+                </div>
+                <div class="section-body">
+                    {% if active_jobs %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Status</th>
+                                <th>Fortschritt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in active_jobs %}
+                            <tr>
+                                <td>{{ job.job_id[:20] }}...</td>
+                                <td>
+                                    <span class="badge badge-{% if job.status == 'running' %}info{% else %}warning{% endif %}">
+                                        {{ job.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: {{ job.progress or 0 }}%"></div>
+                                    </div>
+                                    <small style="color: var(--text-muted)">{{ job.progress or 0 }}%</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p style="color: var(--text-muted); text-align: center; padding: 2rem;">
+                        Keine aktiven Jobs – alles erledigt! 🎉
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Clips -->
+        <div class="section">
+            <div class="section-header">
+                <h2>🎬 Letzte Clips</h2>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Titel</th>
+                            <th>Quelle</th>
+                            <th>Score</th>
+                            <th>Dauer</th>
+                            <th>Status</th>
+                            <th>Export</th>
+                            <th>Erstellt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for clip in recent_clips %}
+                        <tr>
+                            <td>{{ clip.title or "Untitled" }}</td>
+                            <td style="color: var(--text-muted)">{{ clip.source_title[:40] }}...</td>
+                            <td>
+                                <span class="score {% if clip.virality_score > 80 %}score-high{% elif clip.virality_score > 50 %}score-mid{% else %}score-low{% endif %}">
+                                    {{ clip.virality_score or 0 }}
+                                </span>
+                            </td>
+                            <td>{{ "%.0f"|format(clip.duration or 0) }}s</td>
+                            <td>
+                                <span class="badge badge-{% if clip.status == 'ready' %}success{% elif clip.status == 'processing' %}info{% else %}warning{% endif %}">
+                                    {{ clip.status or "unknown" }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if clip.exported %}
+                                <span class="export-badge export-done">✓ Exportiert</span>
+                                {% else %}
+                                <span class="export-badge export-pending">⏳ Wartend</span>
+                                {% endif %}
+                            </td>
+                            <td style="color: var(--text-muted)">{{ clip.created_at.strftime("%d.%m %H:%M") if clip.created_at else "-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top Performer -->
+        <div class="section">
+            <div class="section-header">
+                <h2>🏆 Top Performer (Beste Virality-Scores)</h2>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Clip</th>
+                            <th>Quelle</th>
+                            <th>Virality Score</th>
+                            <th>Dauer</th>
+                            <th>Export-Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for clip in top_performers %}
+                        <tr>
+                            <td>{{ clip.title[:50] if clip.title else clip.id[:20] }}</td>
+                            <td style="color: var(--text-muted)">{{ clip.source_title[:40] if clip.source_title else "-" }}</td>
+                            <td class="score score-high">{{ clip.virality_score or 0 }}</td>
+                            <td>{{ "%.0f"|format(clip.duration or 0) }}s</td>
+                            <td>
+                                {% if clip.exported %}
+                                <span class="export-badge export-done">✓</span>
+                                {% else %}
+                                <span class="export-badge export-pending">⏳</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Storage Stats -->
+        <div class="section">
+            <div class="section-header">
+                <h2>💾 Storage Übersicht</h2>
+            </div>
+            <div class="section-body">
+                <div class="metrics" style="margin-bottom: 0;">
+                    <div class="metric-card">
+                        <div class="label">Fertige Clips</div>
+                        <div class="value">{{ storage_stats.total_clips or 0 }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">Gesamtdauer</div>
+                        <div class="value">{{ "%.0f"|format((storage_stats.total_duration or 0) / 60) }} min</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">Ø Virality</div>
+                        <div class="value">{{ "%.1f"|format(storage_stats.avg_score or 0) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Weekly Chart
+        const ctx = document.getElementById('weeklyChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart.labels | safe }},
+                datasets: [
+                    {
+                        label: 'Downloads',
+                        data: {{ chart.videos | safe }},
+                        backgroundColor: '#00d4aa33',
+                        borderColor: '#00d4aa',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Clips',
+                        data: {{ chart.clips | safe }},
+                        backgroundColor: '#2ed57333',
+                        borderColor: '#2ed573',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e0e0e0' }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#888' },
+                        grid: { color: '#2a2a4a' }
+                    },
+                    y: {
+                        ticks: { color: '#888' },
+                        grid: { color: '#2a2a4a' },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Auto-Refresh alle 60 Sekunden
+        setTimeout(() => {
+            window.location.reload();
+        }, 60000);
+    </script>
+</body>
+</html>
