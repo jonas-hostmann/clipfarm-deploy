@@ -1,28 +1,44 @@
 # ClipFarm – Docker Compose Stack (VPS-Only)
 # Coolify-kompatibel | Upload/Publishing läuft auf separatem Mac Mini
-# Domains: Traefik-Labels für automatische HTTPS via Coolify
+# SupoClip wird aus dem offiziellen Repo gebaut (kein fertiges Image verfügbar)
 
 services:
   # ─────────────────────────────────────────────
-  # SUPOCLIP – KI Clip-Engine
-  # Web UI:     clipfarm.hostmann-media.de
-  # API:        clipfarm.hostmann-media.de/api
+  # SUPOCLIP BACKEND – KI Clip-Engine API (FastAPI)
+  # API:        api.clipfarm.hostmann-media.de
   # ─────────────────────────────────────────────
   supoclip:
-    image: ghcr.io/fujiwara/supoclip:latest
+    build:
+      context: https://github.com/FujiwaraChoki/supoclip.git#main:backend
+      dockerfile: Dockerfile
     container_name: clipfarm_supoclip
     restart: unless-stopped
+    platform: linux/amd64
+    command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/supoclip
-      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/supoclip
+      - TEMP_DIR=/app/uploads
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY:-}
-      - LLM=${LLM:-google-gla:gemini-1.5-flash}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - YOUTUBE_DATA_API_KEY=${YOUTUBE_API_KEY:-}
+      - SELF_HOST=true
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
+      - CORS_ORIGINS=https://clipfarm.hostmann-media.de,https://dashboard.clipfarm.hostmann-media.de
+      - NEXT_PUBLIC_APP_URL=https://clipfarm.hostmann-media.de
     volumes:
-      - clipfarm_data:/app/data
-      - ./config:/app/config:ro
+      - clipfarm_uploads:/app/uploads
+      - clipfarm_clips:/app/clips
     depends_on:
       - postgres
       - redis
@@ -30,10 +46,87 @@ services:
       - clipfarm
     labels:
       - traefik.enable=true
+      - traefik.http.routers.supoclip-api.rule=Host(`api.clipfarm.hostmann-media.de`)
+      - traefik.http.routers.supoclip-api.entrypoints=https
+      - traefik.http.routers.supoclip-api.tls.certresolver=letsencrypt
+      - traefik.http.services.supoclip-api.loadbalancer.server.port=8000
+
+  # ─────────────────────────────────────────────
+  # SUPOCLIP FRONTEND – Web UI (Next.js)
+  # Web UI:     clipfarm.hostmann-media.de
+  # ─────────────────────────────────────────────
+  supoclip-frontend:
+    build:
+      context: https://github.com/FujiwaraChoki/supoclip.git#main:frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: clipfarm_supoclip_frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_API_URL=https://api.clipfarm.hostmann-media.de
+      - BACKEND_INTERNAL_URL=http://supoclip:8000
+      - NEXT_PUBLIC_SELF_HOST=true
+      - NEXT_PUBLIC_APP_URL=https://clipfarm.hostmann-media.de
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/supoclip
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=https://clipfarm.hostmann-media.de
+    depends_on:
+      - postgres
+      - supoclip
+    networks:
+      - clipfarm
+    labels:
+      - traefik.enable=true
       - traefik.http.routers.supoclip.rule=Host(`clipfarm.hostmann-media.de`)
       - traefik.http.routers.supoclip.entrypoints=https
       - traefik.http.routers.supoclip.tls.certresolver=letsencrypt
-      - traefik.http.services.supoclip.loadbalancer.server.port=3000
+      - traefik.http.services.supoclip.loadbalancer.server.port=3107
+
+  # ─────────────────────────────────────────────
+  # SUPOCLIP WORKER – Hintergrund-Verarbeitung
+  # ─────────────────────────────────────────────
+  supoclip-worker:
+    build:
+      context: https://github.com/FujiwaraChoki/supoclip.git#main:backend
+      dockerfile: Dockerfile
+    container_name: clipfarm_supoclip_worker
+    restart: unless-stopped
+    platform: linux/amd64
+    command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/supoclip
+      - TEMP_DIR=/app/uploads
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY:-}
+      - LLM=${LLM:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - YOUTUBE_DATA_API_KEY=${YOUTUBE_API_KEY:-}
+      - SELF_HOST=true
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
+      - CORS_ORIGINS=https://clipfarm.hostmann-media.de
+      - NEXT_PUBLIC_APP_URL=https://clipfarm.hostmann-media.de
+    volumes:
+      - clipfarm_uploads:/app/uploads
+      - clipfarm_clips:/app/clips
+    depends_on:
+      - postgres
+      - redis
+      - supoclip
+    networks:
+      - clipfarm
 
   # ─────────────────────────────────────────────
   # POSTGRESQL – Metadaten & Queue
@@ -49,6 +142,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./config/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./config/supoclip_init.sql:/docker-entrypoint-initdb.d/02-supoclip.sql:ro
     networks:
       - clipfarm
 
@@ -110,7 +204,6 @@ services:
       - DB_POSTGRESDB_DATABASE=n8n
       - DB_POSTGRESDB_USER=postgres
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-      - N8N_PUBLIC_API_DISABLED=true
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n/workflows:/backup/workflows:ro
@@ -171,7 +264,8 @@ services:
 # VOLUMES
 # ─────────────────────────────────────────────
 volumes:
-  clipfarm_data:
+  clipfarm_uploads:
+  clipfarm_clips:
   postgres_data:
   redis_data:
   minio_data:
