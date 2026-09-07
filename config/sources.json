@@ -1,0 +1,23 @@
+{
+  "youtube_channels": [
+    "UCX6OQ3DkcsbYNE6H8uQQuVA",
+    "UCBa659QWEk1AI4Tg--mrJ2A",
+    "UCBJycsmduvYEL83R_U4JriQ"
+  ],
+  "twitch_streamers": [
+    "xqc",
+    "hasanabi",
+    "pokimane"
+  ],
+  "playlists": [
+    "PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf"
+  ],
+  "rss_feeds": [
+    "https://example.com/feed.xml"
+  ],
+  "keywords": [
+    "tech review",
+    "gaming highlights",
+    "podcast clips"
+  ]
+}
