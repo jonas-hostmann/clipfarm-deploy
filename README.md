@@ -7,22 +7,25 @@ auf https://coolify.hostmann-media.de.
 
 | Service | Subdomain | Port |
 |---------|-----------|------|
-| SupoClip | clipfarm.hostmann-media.de | 3000 |
+| SupoClip Frontend | clipfarm.hostmann-media.de | 3107 |
+| SupoClip API | api.clipfarm.hostmann-media.de | 8000 |
 | Dashboard | dashboard.clipfarm.hostmann-media.de | 8080 |
 | n8n | n8n.clipfarm.hostmann-media.de | 5678 |
-| MinIO Console | storage.clipfarm.hostmann-media.de | 9001 |
-| PostgreSQL / Redis / Ollama | intern | – |
+| PostgreSQL / Redis | intern | – |
+
+Hinweise:
+- SupoClip (Backend, Frontend, Worker) wird aus dem offiziellen Repo `FujiwaraChoki/supoclip` gebaut.
+- LLM läuft über OpenRouter (OPENAI_BASE_URL + OPENAI_API_KEY in Coolify setzen).
+- Ollama und MinIO sind vorerst entfernt und werden später nachgerüstet.
 
 ## Enthaltene Ordner
 
-- `config/` – Quellen (YouTube/Twitch) + PostgreSQL-Schema (wird automatisch initialisiert)
+- `config/` – Quellen (YouTube/Twitch) + PostgreSQL-Schemas (ClipFarm + SupoClip)
 - `dashboard/` – FastAPI Monitoring-Dashboard (Build per Dockerfile)
 - `n8n/workflows/` – 4 Workflows: Content Discovery, Clip Processing, Export für Mac Mini, Upload Queue
 - `scripts/` – Setup- und Health-Check-Skripte
 
 ## Setup nach Deployment
 
-1. Env Vars in Coolify setzen (siehe `.env.example`)
-2. Domains in Coolify zuweisen (Tabelle oben)
-3. n8n öffnen → Workflows aus `n8n/workflows/` importieren → Postgres-Credentials anlegen
-4. MinIO Buckets anlegen: `clipfarm-raw`, `clipfarm-clips`, `clipfarm-exports`
+1. Env Vars in Coolify setzen (siehe `.env.example`), insbesondere `OPENAI_API_KEY` (OpenRouter)
+2. n8n öffnen → Workflows aus `n8n/workflows/` importieren → Postgres-Credentials anlegen

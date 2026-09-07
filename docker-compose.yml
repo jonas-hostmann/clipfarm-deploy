@@ -1,6 +1,8 @@
 # ClipFarm – Docker Compose Stack (VPS-Only)
 # Coolify-kompatibel | Upload/Publishing läuft auf separatem Mac Mini
 # SupoClip wird aus dem offiziellen Repo gebaut (kein fertiges Image verfügbar)
+# LLM: OpenRouter API (kein lokales Ollama)
+# MinIO: vorerst deaktiviert (wird später nachgerüstet)
 
 services:
   # ─────────────────────────────────────────────
@@ -24,12 +26,9 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY:-}
-      - LLM=${LLM:-}
+      - LLM=${LLM:-openai:anthropic/claude-3.5-sonnet}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OPENAI_BASE_URL=https://openrouter.ai/api/v1
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_API_KEY:-}
       - SELF_HOST=true
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
@@ -106,12 +105,9 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY:-}
-      - LLM=${LLM:-}
+      - LLM=${LLM:-openai:anthropic/claude-3.5-sonnet}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OPENAI_BASE_URL=https://openrouter.ai/api/v1
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_API_KEY:-}
       - SELF_HOST=true
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
@@ -157,29 +153,6 @@ services:
       - redis_data:/data
     networks:
       - clipfarm
-
-  # ─────────────────────────────────────────────
-  # MINIO – S3-kompatibler Storage
-  # Console:    storage.clipfarm.hostmann-media.de
-  # ─────────────────────────────────────────────
-  minio:
-    image: minio/minio:latest
-    container_name: clipfarm_minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    networks:
-      - clipfarm
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.minio.rule=Host(`storage.clipfarm.hostmann-media.de`)
-      - traefik.http.routers.minio.entrypoints=https
-      - traefik.http.routers.minio.tls.certresolver=letsencrypt
-      - traefik.http.services.minio.loadbalancer.server.port=9001
 
   # ─────────────────────────────────────────────
   # N8N – Workflow Automation
@@ -230,15 +203,11 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/supoclip
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - COOLIFY_URL=${COOLIFY_URL:-https://coolify.hostmann-media.de}
       - COOLIFY_TOKEN=${COOLIFY_TOKEN:-}
       - SUPOCLIP_APP_UUID=${SUPOCLIP_APP_UUID:-}
     depends_on:
       - postgres
-      - minio
     networks:
       - clipfarm
     labels:
@@ -248,18 +217,6 @@ services:
       - traefik.http.routers.dashboard.tls.certresolver=letsencrypt
       - traefik.http.services.dashboard.loadbalancer.server.port=8080
 
-  # ─────────────────────────────────────────────
-  # OLLAMA – Lokale KI (Optional, für Offline-LLM)
-  # ─────────────────────────────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    container_name: clipfarm_ollama
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - clipfarm
-
 # ─────────────────────────────────────────────
 # VOLUMES
 # ─────────────────────────────────────────────
@@ -268,9 +225,7 @@ volumes:
   clipfarm_clips:
   postgres_data:
   redis_data:
-  minio_data:
   n8n_data:
-  ollama_data:
 
 # ─────────────────────────────────────────────
 # NETWORKS
