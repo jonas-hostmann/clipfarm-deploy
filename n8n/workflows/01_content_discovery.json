@@ -1,0 +1,134 @@
+{
+  "name": "01_Content_Discovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Schedule (every 4h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lade YouTube-Kanäle und Streamer aus Config\nconst sources = JSON.parse($env.CLIPFARM_SOURCES || '{}');\nconst channels = sources.youtube_channels || [];\n\nconst results = [];\n\nfor (const channel of channels) {\n  results.push({\n    json: {\n      type: 'youtube_channel',\n      channel_id: channel,\n      rss_url: `https://www.youtube.com/feeds/videos.xml?channel_id=${channel}`\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "load-sources",
+      "name": "Load Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.rss_url }}",
+        "options": {}
+      },
+      "id": "fetch-rss",
+      "name": "Fetch RSS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse RSS und filtere Videos der letzten 6 Stunden\nconst xml = $input.first().json.data;\nconst parser = new (require('fast-xml-parser').XMLParser)();\nconst feed = parser.parse(xml);\n\nconst entries = feed.feed?.entry || [];\nconst cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);\nconst results = [];\n\nfor (const entry of Array.isArray(entries) ? entries : [entries]) {\n  const published = new Date(entry.published);\n  if (published > cutoff) {\n    const videoId = entry['yt:videoId'];\n    results.push({\n      json: {\n        id: videoId,\n        title: entry.title,\n        url: `https://youtube.com/watch?v=${videoId}`,\n        published: entry.published,\n        channel_id: $input.first().json.channel_id,\n        source_type: 'youtube'\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "parse-rss",
+      "name": "Parse & Filter RSS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO videos (id, title, url, source_channel, source_type, status, downloaded_at) VALUES ($1, $2, $3, $4, $5, 'pending', NOW()) ON CONFLICT (id) DO NOTHING RETURNING *",
+        "options": {
+          "queryParams": {
+            "mode": "multiple"
+          }
+        }
+      },
+      "id": "save-to-db",
+      "name": "Save to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1050, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-clipfarm",
+          "name": "ClipFarm Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prüfe ob Video bereits verarbeitet wurde\nconst videoId = $input.first().json.id;\n\nreturn [{\n  json: {\n    video_id: videoId,\n    should_download: true\n  }\n}];"
+      },
+      "id": "check-duplicate",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "webhookUri": "http://supoclip:8000/api/v1/jobs/download",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_id",
+              "value": "={{ $json.video_id }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ $input.all()[0].json.url }}"
+            }
+          ]
+        }
+      },
+      "id": "trigger-download",
+      "name": "Trigger Download Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Schedule (every 4h)": {
+      "main": [[{"node": "Load Sources", "type": "main", "index": 0}]]
+    },
+    "Load Sources": {
+      "main": [[{"node": "Fetch RSS Feed", "type": "main", "index": 0}]]
+    },
+    "Fetch RSS Feed": {
+      "main": [[{"node": "Parse & Filter RSS", "type": "main", "index": 0}]]
+    },
+    "Parse & Filter RSS": {
+      "main": [[{"node": "Save to DB", "type": "main", "index": 0}]]
+    },
+    "Save to DB": {
+      "main": [[{"node": "Check Duplicate", "type": "main", "index": 0}]]
+    },
+    "Check Duplicate": {
+      "main": [[{"node": "Trigger Download Job", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

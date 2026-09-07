@@ -1,0 +1,171 @@
+{
+  "name": "02_Process_Clips",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "webhook/process-video",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Video Downloaded Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "process-video"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hole Video-Details aus DB\nconst videoId = $input.first().json.body.video_id;\nreturn [{\n  json: { video_id: videoId }\n}];"
+      },
+      "id": "prep-process",
+      "name": "Prepare Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://supoclip:8000/api/v1/clips/generate",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "video_id",
+              "value": "={{ $json.video_id }}"
+            },
+            {
+              "name": "num_clips",
+              "value": "5"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "9:16"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "call-supoclip",
+      "name": "Call SupoClip API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE videos SET status = 'processing' WHERE id = $1",
+        "options": {
+          "queryParams": {
+            "mode": "single"
+          }
+        }
+      },
+      "id": "mark-processing",
+      "name": "Mark Processing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Speichere generierte Clips in DB\nconst clips = $input.first().json.clips || [];\nconst videoId = $input.first().json.video_id;\nconst results = [];\n\nfor (const clip of clips) {\n  results.push({\n    json: {\n      id: clip.id || `clip_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,\n      source_video_id: videoId,\n      title: clip.title || 'Untitled',\n      hook: clip.hook || '',\n      virality_score: clip.score || 0,\n      duration: clip.duration || 0,\n      file_path: clip.file_path || '',\n      status: 'ready',\n      start_time: clip.start_time || 0,\n      end_time: clip.end_time || 0\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "parse-clips",
+      "name": "Parse Clips",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "clips",
+        "columns": {
+          "mapping": [
+            {
+              "column": "id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "column": "source_video_id",
+              "value": "={{ $json.source_video_id }}"
+            },
+            {
+              "column": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "column": "hook",
+              "value": "={{ $json.hook }}"
+            },
+            {
+              "column": "virality_score",
+              "value": "={{ $json.virality_score }}"
+            },
+            {
+              "column": "duration",
+              "value": "={{ $json.duration }}"
+            },
+            {
+              "column": "file_path",
+              "value": "={{ $json.file_path }}"
+            },
+            {
+              "column": "status",
+              "value": "={{ $json.status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-clips",
+      "name": "Save Clips to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Video Downloaded Webhook": {
+      "main": [[{"node": "Prepare Processing", "type": "main", "index": 0}]]
+    },
+    "Prepare Processing": {
+      "main": [
+        [{"node": "Mark Processing", "type": "main", "index": 0}],
+        [{"node": "Call SupoClip API", "type": "main", "index": 0}]
+      ]
+    },
+    "Call SupoClip API": {
+      "main": [[{"node": "Parse Clips", "type": "main", "index": 0}]]
+    },
+    "Parse Clips": {
+      "main": [[{"node": "Save Clips to DB", "type": "main", "index": 0}]]
+    },
+    "Save Clips to DB": {
+      "main": [[{"node": "Respond Success", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}
